@@ -100,8 +100,10 @@ inline static BOOL CGImageSourceGetFramesAndDurations(NSTimeInterval *finalDurat
 
     dispatch_group_t dispatch_group = dispatch_group_create();
 
-    for (NSUInteger i = 0; i < numberOfFrames; ++i) {
+    for (NSUInteger i = 0; i < numberOfFrames; ++i)
         [animatedImage.images addObject:[NSNull null]];
+
+    for (NSUInteger i = 0; i < numberOfFrames; ++i)
         dispatch_group_async(dispatch_group, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             //Implement as Browsers do, to ensure UX.
             //See: http://nullsleep.tumblr.com/post/16524517190/animated-gif-minimum-frame-delay-browser-compatibility
@@ -116,7 +118,6 @@ inline static BOOL CGImageSourceGetFramesAndDurations(NSTimeInterval *finalDurat
             CFRelease(theImage);
             animatedImage.totalDuration += animatedImage.frameDurations[i];
       });
-    }
 
     dispatch_group_wait(dispatch_group, DISPATCH_TIME_FOREVER);
 
