@@ -88,34 +88,21 @@ inline static BOOL CGImageSourceGetFramesAndDurations(NSTimeInterval *finalDurat
         CFRelease(imageSource);
         return [UIImage imageWithData:data];
     }
-    
+
     NSDictionary *imageProperties = CFBridgingRelease(CGImageSourceCopyProperties(imageSource, NULL));
     NSDictionary *GIFProperties = [imageProperties objectForKey:(NSString *)kCGImagePropertyGIFDictionary];
-    
+
     OLImage *animatedImage = [[OLImage  alloc] init];
     animatedImage.images = [NSMutableArray arrayWithCapacity:numberOfFrames];
     animatedImage.frameDurations = (NSTimeInterval *) malloc(numberOfFrames  * sizeof(NSTimeInterval));
     animatedImage.totalDuration = 0.0f;
     animatedImage.loopCount = [GIFProperties[(NSString *)kCGImagePropertyGIFLoopCount] unsignedIntegerValue];
-    
-    //Load First Frame
-    double proposedFrameDuration = CGImageSourceGetGifFrameDelay(imageSource, 0);
-#ifndef OLExactGIFRepresentation
-    proposedFrameDuration = (proposedFrameDuration >= 0.02) ? proposedFrameDuration : 0.10f;
-#endif
-    animatedImage.frameDurations[0] = proposedFrameDuration;
-    
-    CGImageRef theImage = CGImageSourceCreateImageAtIndex(imageSource, 0, NULL);
-    [animatedImage.images addObject:[UIImage imageWithCGImage:theImage]];
-    CFRelease(theImage);
-    animatedImage.totalDuration += animatedImage.frameDurations[0];
-    
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        
-        BOOL evenFrameDuration = YES;
-        NSUInteger numberOfFrames = CGImageSourceGetCount(imageSource);
-        for (NSUInteger i = 1; i < numberOfFrames; ++i) {
-            
+
+    dispatch_group_t dispatch_group = dispatch_group_create();
+
+    for (NSUInteger i = 0; i < numberOfFrames; ++i) {
+        [animatedImage.images addObject:[NSNull null]];
+        dispatch_group_async(dispatch_group, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             //Implement as Browsers do, to ensure UX.
             //See: http://nullsleep.tumblr.com/post/16524517190/animated-gif-minimum-frame-delay-browser-compatibility
             //See also: http://blogs.msdn.com/b/ieinternals/archive/2010/06/08/animated-gifs-slow-down-to-under-20-frames-per-second.aspx
@@ -124,20 +111,16 @@ inline static BOOL CGImageSourceGetFramesAndDurations(NSTimeInterval *finalDurat
             proposedFrameDuration = (proposedFrameDuration >= 0.02) ? proposedFrameDuration : 0.10f;
 #endif
             animatedImage.frameDurations[i] = proposedFrameDuration;
-            
-            if (evenFrameDuration && i > 0 && animatedImage.frameDurations[i] != animatedImage.frameDurations[i-1]) {
-                evenFrameDuration = NO;
-            }
-            
             CGImageRef theImage = CGImageSourceCreateImageAtIndex(imageSource, i, NULL);
-            [animatedImage.images addObject:[UIImage imageWithCGImage:theImage]];
+            [animatedImage.images replaceObjectAtIndex:i withObject:[UIImage imageWithCGImage:theImage]];
             CFRelease(theImage);
             animatedImage.totalDuration += animatedImage.frameDurations[i];
-        }
-        
-        CFRelease(imageSource);
-    });
-    
+      });
+    }
+
+    dispatch_group_wait(dispatch_group, DISPATCH_TIME_FOREVER);
+
+    CFRelease(imageSource);
     return animatedImage;
 }
 
